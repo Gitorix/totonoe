@@ -268,6 +268,48 @@ if (state.idx >= state.questions.length) {
 
       return;
     }
+// Result
+const gentle = !!state.behavior.gentle;
+const summary = buildSummary(state.questions, state.answers);
+
+card.innerHTML = `
+  <div class="row">
+    <div class="pill">結果</div>
+    <div class="progress">${state.questions.length} / ${state.questions.length}</div>
+  </div>
+  <div class="spacer"></div>
+
+  <div class="title">まとめ</div>
+  <div class="muted">${gentle ? "やさしく整理しました。" : "整理結果です。"}</div>
+  <div class="spacer"></div>
+
+  <div class="card" style="border:1px solid #f1f1f1; background:#fafafa;">
+    <pre>${escapeHTML(summary)}</pre>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="row">
+    <button id="copyPrompt" class="btn">📋 プロンプトをコピー</button>
+    <div style="display:flex; gap:10px;">
+      <button id="restart2" class="btn ghost">Reset</button>
+      <button id="back2" class="btn">← 戻る</button>
+    </div>
+  </div>
+`;
+
+view.appendChild(card); // ← ★この直後が正解位置
+
+// ✅ ここに置く（結果DOMが存在してから）
+const promptText = buildPrompt(state.questions, state.answers);
+
+$("#copyPrompt").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(promptText);
+    alert("プロンプトをコピーしました！");
+  } catch (e) {
+    alert("コピーに失敗しました。");
+  }
+});
 
     const gentle = !!state.behavior.gentle;
     const summary = buildSummary(state.questions, state.answers);
