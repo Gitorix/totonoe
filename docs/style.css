@@ -1,0 +1,88 @@
+body {
+  font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  padding: 24px;
+  line-height: 1.6;
+  background: #fff;
+  color: #111;
+}
+
+#app {
+  margin-top: 16px;
+  max-width: 720px;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(0,0,0,0.03);
+  min-height: 120px;
+}
+
+.card {
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+}
+
+.qtitle {
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.15);
+  font-size: 16px;
+  outline: none;
+  resize: vertical;
+}
+
+textarea:focus {
+  border-color: rgba(0,0,0,0.35);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+button {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.primary {
+  font-weight: 800;
+}
+
+.small { font-size: 0.92em; opacity: 0.9; }
+.muted { opacity: 0.7; font-size: 0.9em; }
+
+.history-list { display: grid; gap: 10px; margin-top: 10px; }
+.history-item { padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.04); }
+.badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid rgba(0,0,0,0.15); }
+
+.fade-in { animation: fadeIn 0.55s ease forwards; }
+.fade-out { animation: fadeOut 0.35s ease forwards; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
