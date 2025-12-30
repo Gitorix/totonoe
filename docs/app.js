@@ -225,11 +225,20 @@
       const q = state.questions[state.idx];
       const prev = state.answers[state.idx] || "";
 
-      card.innerHTML = `
-        <div class="row">
-          <div class="pill">Aモード：TOTONOE</div>
-          <div class="progress">${state.idx + 1} / ${state.questions.length}</div>
-        </div>
+     card.innerHTML = `
+  <div style="text-align:center; margin-bottom:16px;">
+    <img
+      src="./totonoe.png"
+      alt="TOTONOE"
+      style="max-width:220px; width:100%; border-radius:16px;"
+    />
+  </div>
+
+  <div class="row">
+    <div class="pill">Aモード：TOTONOE</div>
+    <div class="progress">${state.idx + 1} / ${state.questions.length}</div>
+  </div>
+
         <div class="spacer"></div>
 
         <div class="q">${escapeHTML(q)}</div>
