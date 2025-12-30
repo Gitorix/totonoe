@@ -1,805 +1,430 @@
-// ===============================
-// TOTONOE - app.js (A/B + Code Lab)
-// ===============================
+/* TOTONOE - single file app.js (GitHub Pages OK)
+   - A: TOTONOE（質問に答える）
+   - B: Code Lab（JSONを手打ちして質問を編集・追加）
+   - Apply / Run：JSONを安全に読み込み、質問とUI設定だけ反映（JS実行なし）
+*/
 
-const QUESTIONS_KEY = "totonoe_questions";
-const HISTORY_KEY = "totonoe_history";
+(() => {
+  // ---------- Storage Keys ----------
+  const QUESTIONS_KEY = "totonoe_questions";
+  const UI_KEY = "totonoe_ui";
+  const BEHAVIOR_KEY = "totonoe_behavior";
+  const MODE_KEY = "totonoe_mode";
 
-// A/B mode (A=通常 / B=視聴者コーディング体験)
-const AB_KEY = "totonoe_mode"; // "A" or "B"
-const CODELAB_KEY = "totonoe_codelab_config";
-
-// -------------------------------
-// Storage helpers
-// -------------------------------
-function loadQuestions(defaults) {
-  try {
-    const saved = JSON.parse(localStorage.getItem(QUESTIONS_KEY) || "null");
-    if (Array.isArray(saved) && saved.length > 0) return saved;
-  } catch (e) {}
-  return defaults;
-}
-
-function saveQuestions(list) {
-  try {
-    localStorage.setItem(QUESTIONS_KEY, JSON.stringify(list));
-  } catch (e) {}
-}
-
-function getMode() {
-  try {
-    return localStorage.getItem(AB_KEY) || "A";
-  } catch {
-    return "A";
-  }
-}
-
-function setMode(mode) {
-  try {
-    localStorage.setItem(AB_KEY, mode);
-  } catch {}
-}
-
-// -------------------------------
-// Utility
-// -------------------------------
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function safeId() {
-  return typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID()
-    : String(Date.now());
-}
-
-// -------------------------------
-// Code Lab (B mode) config
-// -------------------------------
-function getDefaultCodeLabConfig() {
-  return {
-    questions: [
-      "① 状況（事実）：いま何が起きてる？",
-      "② 気持ち：どう感じてる？",
-      "③ 引っかかり：どこがモヤる？",
-      "④ 本当はどうしたい：理想は？",
-      "⑤ 次の一歩（小さくてOK）：何からやる？",
-    ],
-    ui: { accent: "#7c5cff", cardRadius: 16 },
-    behavior: { gentle: true, animate: true },
-  };
-}
-
-function loadCodeLabConfig() {
-  try {
-    const raw = localStorage.getItem(CODELAB_KEY);
-    if (!raw) return getDefaultCodeLabConfig();
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : getDefaultCodeLabConfig();
-  } catch {
-    return getDefaultCodeLabConfig();
-  }
-}
-
-function saveCodeLabConfig(cfg) {
-  try {
-    localStorage.setItem(CODELAB_KEY, JSON.stringify(cfg));
-  } catch {}
-}
-
-// ===============================
-// Main
-// ===============================
-document.addEventListener("DOMContentLoaded", () => {
-  const app = document.getElementById("app");
-  if (!app) {
-    console.error("index.html に <div id='app'></div> がありません");
-    return;
-  }
-
-  // ===== Defaults =====
+  // ---------- Defaults ----------
   const DEFAULT_QUESTIONS = [
     "① 状況（事実）：いま何が起きてる？",
     "② 気持ち：どう感じてる？",
     "③ 引っかかり：どこがモヤる？",
-    "④ 本当はどうしたい：理想は？",
+    "④ 本音：本当はどうしたい？理想は？",
     "⑤ 次の一歩（小さくてOK）：何からやる？",
   ];
 
-  // ===== State =====
-  let questions = loadQuestions(DEFAULT_QUESTIONS);
-  let idx = 0;
-  let loopCount = 0;
-  const answers = Array(questions.length).fill("");
+  const DEFAULT_UI = {
+    accent: "#7c5cff",
+    cardRadius: 16,
+  };
 
-  // ===== Theme apply (CSS vars + dataset) =====
-  function applyBehaviorFlags(cfg) {
-    const gentle = !!cfg?.behavior?.gentle;
-    const animate = !!cfg?.behavior?.animate;
-    document.body.dataset.gentle = gentle ? "1" : "0";
-    document.body.dataset.animate = animate ? "1" : "0";
-  }
+  const DEFAULT_BEHAVIOR = {
+    gentle: true,
+    animate: true,
+  };
 
-  function applyTheme(cfg) {
-    const accent = String(cfg?.ui?.accent || "#7c5cff");
-    const radius = Number(cfg?.ui?.cardRadius ?? 16);
-    document.documentElement.style.setProperty("--accent", accent);
-    document.documentElement.style.setProperty(
-      "--card-radius",
-      (isFinite(radius) ? radius : 16) + "px"
-    );
-    applyBehaviorFlags(cfg);
-  }
+  // ---------- Helpers ----------
+  const $ = (sel) => document.querySelector(sel);
 
-  // ===== History =====
-  function loadHistory() {
+  function safeParseJSON(text) {
     try {
-      return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      return { ok: true, value: JSON.parse(text) };
+    } catch (e) {
+      return { ok: false, error: e };
+    }
+  }
+
+  function loadJSON(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      const v = JSON.parse(raw);
+      return v ?? fallback;
     } catch {
-      return [];
+      return fallback;
     }
   }
 
-  function saveSessionHistory(final) {
-    const history = loadHistory();
-    history.unshift({
-      id: safeId(),
-      timestamp: new Date().toISOString(),
-      final, // "YES" or "NO"
-      loopCount,
-      answers: [...answers],
-    });
-    try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
-    } catch {}
+  function saveJSON(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
   }
 
-  function clearHistory() {
-    localStorage.removeItem(HISTORY_KEY);
-    showHistory();
+  function sanitizeQuestions(arr) {
+    if (!Array.isArray(arr)) return null;
+    const cleaned = arr
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean)
+      .slice(0, 50); // 上限（好きに変えてOK）
+    return cleaned.length ? cleaned : null;
   }
 
-  // ===============================
-  // A/B Header
-  // ===============================
-  function mountABHeader() {
-    if (document.getElementById("abHeader")) return;
+  function clampNum(n, min, max, fallback) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return fallback;
+    return Math.min(max, Math.max(min, x));
+  }
 
-    const header = document.createElement("div");
-    header.id = "abHeader";
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.justifyContent = "space-between";
-    header.style.gap = "10px";
-    header.style.padding = "10px 12px";
-    header.style.position = "sticky";
-    header.style.top = "0";
-    header.style.zIndex = "999";
-    header.style.backdropFilter = "blur(8px)";
-    header.style.background = "rgba(255,255,255,0.06)";
-    header.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
+  // ---------- State ----------
+  let state = {
+    mode: loadJSON(MODE_KEY, "A"),
+    questions: loadJSON(QUESTIONS_KEY, DEFAULT_QUESTIONS),
+    ui: { ...DEFAULT_UI, ...loadJSON(UI_KEY, DEFAULT_UI) },
+    behavior: { ...DEFAULT_BEHAVIOR, ...loadJSON(BEHAVIOR_KEY, DEFAULT_BEHAVIOR) },
+    idx: 0,
+    answers: [],
+    seedFixed: "",
+  };
 
-    header.innerHTML = `
-      <div style="font-weight:800;">TOTONOE</div>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <button id="modeA">A</button>
-        <button id="modeB">B</button>
-        <button id="openLab" style="display:none;">🧪 Code Lab</button>
+  // ---------- Mount ----------
+  document.addEventListener("DOMContentLoaded", () => {
+    const app = document.getElementById("app");
+    if (!app) return;
+
+    injectBaseUI(app);
+    bindHeader();
+    render();
+  });
+
+  function injectBaseUI(app) {
+    app.innerHTML = `
+      <style>
+        :root { --accent: ${state.ui.accent}; --radius: ${state.ui.cardRadius}px; }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #111; background: #fff; }
+        .wrap { max-width: 980px; margin: 0 auto; padding: 28px 22px 60px; }
+        .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 18px; }
+        .brand { font-weight: 800; letter-spacing: .3px; }
+        .controls { display:flex; gap:10px; align-items:center; }
+        .btn { border: 1px solid #e6e6e6; background: #fff; padding: 10px 14px; border-radius: 14px; cursor: pointer; font-weight: 650; }
+        .btn:hover { border-color: #d6d6d6; }
+        .btn.primary { border-color: transparent; background: var(--accent); color: #fff; }
+        .btn.ghost { background:#fff; }
+        .btn.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .card { border: 1px solid #eee; border-radius: var(--radius); padding: 18px; background: #fff; }
+        .muted { color:#666; font-size: 13px; }
+        .title { font-size: 18px; font-weight: 800; margin: 0 0 8px; }
+        .row { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+        .spacer { height: 12px; }
+        textarea, input[type="text"] {
+          width: 100%; border: 1px solid #e6e6e6; border-radius: 14px; padding: 12px 12px;
+          font-size: 14px; line-height: 1.5; outline: none;
+        }
+        textarea:focus, input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,.12); }
+        .q { font-weight: 800; margin: 0 0 10px; }
+        .progress { font-size: 13px; color:#555; }
+        .pill { display:inline-flex; gap:8px; align-items:center; border: 1px solid #eee; padding: 7px 10px; border-radius: 999px; font-size: 13px; color:#333; }
+        .fadeIn { animation: fadeIn .18s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+        pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.55; }
+        .danger { color:#b00020; }
+        .codehint { font-size: 13px; color:#444; }
+        .grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
+        @media(min-width: 860px){ .grid { grid-template-columns: 1fr 1fr; } }
+      </style>
+
+      <div class="wrap">
+        <div class="topbar">
+          <div class="brand">TOTONOE</div>
+          <div class="controls">
+            <button id="btnA" class="btn">A</button>
+            <button id="btnB" class="btn">B</button>
+            <button id="btnLab" class="btn">🧪 Code Lab</button>
+          </div>
+        </div>
+
+        <div id="view"></div>
       </div>
     `;
-
-    document.body.prepend(header);
-
-    const apply = () => {
-      const mode = getMode();
-      document.body.dataset.mode = mode;
-      document.getElementById("modeA").className = mode === "A" ? "primary" : "";
-      document.getElementById("modeB").className = mode === "B" ? "primary" : "";
-      document.getElementById("openLab").style.display = mode === "B" ? "inline-block" : "none";
-    };
-
-    document.getElementById("modeA").addEventListener("click", () => {
-      setMode("A");
-      apply();
-      renderQuestion(true);
-    });
-
-    document.getElementById("modeB").addEventListener("click", () => {
-      setMode("B");
-      apply();
-      showCodeLab();
-    });
-
-    document.getElementById("openLab").addEventListener("click", showCodeLab);
-
-    apply();
   }
 
-  // ===============================
-  // B mode: Code Lab (safe JSON)
-  // ===============================
-  function applyCodeLabConfig(cfg) {
-    // ✅ validate questions
-    const q = Array.isArray(cfg?.questions)
-      ? cfg.questions.map((s) => String(s || "").trim()).filter(Boolean)
-      : null;
-
-    if (!q || q.length === 0) throw new Error("questions は1つ以上必要です");
-
-    // 反映
-    questions = [...q];
-    saveQuestions(questions);
-
-    // answers の長さ合わせ
-    while (answers.length < questions.length) answers.push("");
-    if (answers.length > questions.length) answers.length = questions.length;
-    idx = Math.min(idx, questions.length - 1);
-
-    // Theme/behavior
-    applyTheme(cfg);
+  function bindHeader() {
+    $("#btnA").addEventListener("click", () => setMode("A"));
+    $("#btnB").addEventListener("click", () => setMode("B"));
+    $("#btnLab").addEventListener("click", () => setMode("B")); // 表示は同じ（B＝Code Lab）
   }
 
-  function showCodeLab() {
-    app.innerHTML = "";
+  function setMode(mode) {
+    state.mode = mode;
+    saveJSON(MODE_KEY, mode);
+    render();
+  }
+
+  function applyActiveButtons() {
+    $("#btnA").classList.toggle("active", state.mode === "A");
+    $("#btnB").classList.toggle("active", state.mode === "B");
+    $("#btnLab").classList.toggle("active", state.mode === "B");
+  }
+
+  // ---------- Render ----------
+  function render() {
+    applyActiveButtons();
+    // reflect UI vars
+    document.documentElement.style.setProperty("--accent", state.ui.accent);
+    document.documentElement.style.setProperty("--radius", `${state.ui.cardRadius}px`);
+
+    const view = $("#view");
+    view.innerHTML = "";
+
+    if (state.mode === "A") renderApp(view);
+    else renderCodeLab(view);
+  }
+
+  // ---------- A: TOTONOE ----------
+  function renderApp(view) {
+    const animate = !!state.behavior.animate;
+
+    // seed（Code Lab入力）を「開始時に固定」できるようにしておく
+    const currentSeed = (window.TOTONOE && window.TOTONOE.codelabText) ? window.TOTONOE.codelabText : "";
 
     const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
+    card.className = `card ${animate ? "fadeIn" : ""}`;
 
-    const cfg = loadCodeLabConfig();
-    const initialText = JSON.stringify(cfg, null, 2);
+    // 進行中 or 結果
+    if (state.idx < state.questions.length) {
+      const q = state.questions[state.idx];
+      const prev = state.answers[state.idx] || "";
 
-    card.innerHTML = `
-      <p class="qtitle">🧪 Bモード：Code Lab（疑似コーディング体験）</p>
-      <p class="small muted">JSONを編集 → Applyで即反映（危険なJSは実行しません）</p>
-
-      <textarea id="codeLabArea" spellcheck="false"
-        style="
-          width:100%;
-          height:320px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size:12px;
-          line-height:1.5;
-          padding:12px;
-          border-radius:12px;
-        "
-      >${escapeHtml(initialText)}</textarea>
-
-      <div class="row" style="margin-top:12px;">
-        <button id="btnBackToApp">← アプリに戻る</button>
-        <button id="btnResetLab">Reset</button>
-        <button class="primary" id="btnApplyLab" style="margin-left:auto;">Apply / Run</button>
-      </div>
-
-      <p class="small muted" style="margin-top:10px;">
-        例）questions配列を増やす / ui.accentを変える / behavior.animateをfalseにする
-      </p>
-    `;
-
-    app.appendChild(card);
-
-    document.getElementById("btnBackToApp").addEventListener("click", () => {
-      renderQuestion(true);
-    });
-
-    document.getElementById("btnResetLab").addEventListener("click", () => {
-      if (!confirm("Code Lab設定を初期化しますか？")) return;
-      const d = getDefaultCodeLabConfig();
-      saveCodeLabConfig(d);
-      applyTheme(d);
-      showCodeLab();
-    });
-
-    document.getElementById("btnApplyLab").addEventListener("click", () => {
-      const raw = document.getElementById("codeLabArea").value;
-      try {
-        const parsed = JSON.parse(raw);
-        applyCodeLabConfig(parsed);
-        saveCodeLabConfig(parsed);
-        alert("反映しました！（アプリに戻って確認できます）");
-      } catch (e) {
-        alert("JSONエラー or 設定エラー：\n" + (e?.message || String(e)));
-      }
-    });
-  }
-
-  // ===============================
-  // Question Editor (UI)
-  // ===============================
-  function showQuestionEditor() {
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-
-    const title = document.createElement("p");
-    title.className = "qtitle";
-    title.textContent = "⚙ 質問を編集（かんたん）";
-
-    const note = document.createElement("p");
-    note.className = "small";
-    note.style.marginTop = "8px";
-    note.textContent = "※ この設定は、このブラウザ（あなたの端末）だけに保存されます。";
-
-    const form = document.createElement("div");
-    form.style.display = "grid";
-    form.style.gap = "10px";
-    form.style.marginTop = "14px";
-
-    const draft = [...questions];
-    const textareas = [];
-
-    for (let i = 0; i < draft.length; i++) {
-      const label = document.createElement("p");
-      label.className = "small";
-      label.style.margin = "0";
-      label.innerHTML = `<b>Q${i + 1}</b>`;
-
-      const ta = document.createElement("textarea");
-      ta.rows = 2;
-      ta.value = draft[i] || "";
-      ta.placeholder = `Q${i + 1} の質問文`;
-      ta.addEventListener("input", () => {
-        draft[i] = ta.value;
-      });
-
-      textareas.push(ta);
-      form.appendChild(label);
-      form.appendChild(ta);
-    }
-
-    const row = document.createElement("div");
-    row.className = "row";
-    row.style.marginTop = "14px";
-
-    const btnBack = document.createElement("button");
-    btnBack.textContent = "← 戻る";
-
-    const btnReset = document.createElement("button");
-    btnReset.textContent = "初期に戻す";
-
-    const btnSave = document.createElement("button");
-    btnSave.textContent = "保存";
-    btnSave.className = "primary";
-    btnSave.style.marginLeft = "auto";
-
-    row.appendChild(btnBack);
-    row.appendChild(btnReset);
-    row.appendChild(btnSave);
-
-    const hint = document.createElement("p");
-    hint.className = "small";
-    hint.style.marginTop = "10px";
-    hint.textContent = "保存すると次の質問から反映されます。履歴は消えません。";
-
-    card.appendChild(title);
-    card.appendChild(note);
-    card.appendChild(form);
-    card.appendChild(row);
-    card.appendChild(hint);
-    app.appendChild(card);
-
-    btnBack.addEventListener("click", () => {
-      renderQuestion(true);
-    });
-
-    btnReset.addEventListener("click", () => {
-      if (!confirm("質問を初期状態に戻しますか？")) return;
-      questions = [...DEFAULT_QUESTIONS];
-      saveQuestions(questions);
-
-      while (answers.length < questions.length) answers.push("");
-      if (answers.length > questions.length) answers.length = questions.length;
-
-      idx = Math.min(idx, questions.length - 1);
-      renderQuestion(true);
-    });
-
-    btnSave.addEventListener("click", () => {
-      const cleaned = textareas
-        .map((ta) => String(ta.value || "").trim())
-        .filter(Boolean);
-
-      if (cleaned.length === 0) {
-        alert("1つ以上、質問文を入力してください。");
-        return;
-      }
-
-      questions = [...cleaned];
-      saveQuestions(questions);
-
-      while (answers.length < questions.length) answers.push("");
-      if (answers.length > questions.length) answers.length = questions.length;
-
-      idx = Math.min(idx, questions.length - 1);
-      renderQuestion(true);
-    });
-  }
-
-  // ===============================
-  // Prompt build
-  // ===============================
-  function buildPromptText(questions, answers) {
-    const lines = [];
-    lines.push("以下は思考整理メモです。");
-    lines.push("この内容をもとに、次の2点だけを出してください：");
-    lines.push("1) 要点の整理（箇条書き）");
-    lines.push("2) 見落としがちな視点（押し付けず、候補として）");
-    lines.push("");
-    lines.push("【思考整理メモ】");
-
-    for (let i = 0; i < questions.length; i++) {
-      lines.push(`${questions[i]}`);
-      lines.push(answers[i] ? answers[i] : "（未入力）");
-      lines.push("");
-    }
-
-    if (answers.length > questions.length) {
-      lines.push("【追加メモ】");
-      lines.push(answers[answers.length - 1]);
-      lines.push("");
-    }
-
-    lines.push("※助言や断定は避け、選択肢として提案してください。");
-    return lines.join("\n");
-  }
-
-  // ===============================
-  // UI: Main flow
-  // ===============================
-  function renderQuestion(prefill = false) {
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    const title = document.createElement("p");
-    title.className = "qtitle";
-    title.textContent = `Q${idx + 1}. ${questions[idx]}`;
-
-    const textarea = document.createElement("textarea");
-    textarea.rows = 4;
-    textarea.placeholder = "ここに入力（短くてもOK）";
-    textarea.value = prefill ? (answers[idx] || "") : "";
-
-    const row = document.createElement("div");
-    row.className = "row";
-
-    const btnBack = document.createElement("button");
-    btnBack.textContent = "← 戻る";
-    btnBack.disabled = idx === 0;
-
-    const btnNext = document.createElement("button");
-    btnNext.textContent = idx < questions.length - 1 ? "次へ →" : "最後へ →";
-    btnNext.className = "primary";
-
-    const btnHistory = document.createElement("button");
-    btnHistory.textContent = "🗂 履歴";
-    btnHistory.style.marginLeft = "auto";
-
-    const btnEdit = document.createElement("button");
-    btnEdit.textContent = "⚙ 質問を編集";
-
-    row.appendChild(btnBack);
-    row.appendChild(btnNext);
-    row.appendChild(btnHistory);
-    row.appendChild(btnEdit);
-
-    card.appendChild(title);
-    card.appendChild(textarea);
-    card.appendChild(row);
-    app.appendChild(card);
-
-    textarea.focus();
-
-    btnBack.addEventListener("click", () => {
-      answers[idx] = textarea.value.trim();
-      idx = Math.max(0, idx - 1);
-      renderQuestion(true);
-    });
-
-    btnNext.addEventListener("click", () => {
-      answers[idx] = textarea.value.trim();
-      idx++;
-
-      if (idx < questions.length) {
-        renderQuestion(true);
-      } else {
-        showFinalQuestion();
-      }
-    });
-
-    btnHistory.addEventListener("click", showHistory);
-    btnEdit.addEventListener("click", showQuestionEditor);
-  }
-
-  function showFinalQuestion() {
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    card.innerHTML = `
-      <p class="qtitle">最後の確認</p>
-      <p>ここまで整理して、いったん区切ってもいい？</p>
-      <div class="row">
-        <button class="primary" id="btnYes">YES</button>
-        <button id="btnNo">NO</button>
-        <button id="btnHistory" style="margin-left:auto;">🗂 履歴</button>
-      </div>
-      <p class="muted small">YES：ここで区切る ／ NO：もう少し整理を続ける</p>
-    `;
-
-    app.appendChild(card);
-
-    document.getElementById("btnYes").addEventListener("click", () => finalAnswer(true));
-    document.getElementById("btnNo").addEventListener("click", () => finalAnswer(false));
-    document.getElementById("btnHistory").addEventListener("click", showHistory);
-  }
-
-  function finalAnswer(isYes) {
-    const final = isYes ? "YES" : "NO";
-    saveSessionHistory(final);
-
-    if (isYes) showResult();
-    else showNoBridge();
-  }
-
-  // NO側（Aとしての既存）も残しつつ、ここは後で“B演出”に寄せてもOK
-  function showNoBridge() {
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    card.innerHTML = `
-      <p class="qtitle">OK。まだ引っかかりが残ってる感じだね。</p>
-      <p class="small">次はどっちで整理する？</p>
-      <div class="row" style="flex-direction:column; gap:10px;">
-        <button class="primary" id="btnLoop">🔁 もう一周する（回答を編集）</button>
-        <button id="btnDeep">🎯 引っかかりだけ深掘り</button>
-        <button id="btnHistory" style="margin-left:auto;">🗂 履歴</button>
-      </div>
-    `;
-
-    app.appendChild(card);
-
-    document.getElementById("btnLoop").addEventListener("click", restartLoop);
-    document.getElementById("btnDeep").addEventListener("click", deepDiveOne);
-    document.getElementById("btnHistory").addEventListener("click", showHistory);
-  }
-
-  function restartLoop() {
-    loopCount += 1;
-    idx = 0;
-    renderQuestion(true);
-  }
-
-  function deepDiveOne() {
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    card.innerHTML = `
-      <p class="qtitle">🎯 どこが一番引っかかってる？</p>
-      <textarea id="deepInput" rows="3" placeholder="例：決め手がない / 不安 / 情報不足 など"></textarea>
-      <div class="row">
-        <button class="primary" id="btnDeepOk">整理して続ける</button>
-        <button id="btnBackFinal">← 戻る</button>
-      </div>
-      <p class="muted">※ 入れた内容はメモとして残します。</p>
-    `;
-
-    app.appendChild(card);
-
-    const deepInput = document.getElementById("deepInput");
-    deepInput.focus();
-
-    document.getElementById("btnBackFinal").addEventListener("click", showFinalQuestion);
-    document.getElementById("btnDeepOk").addEventListener("click", () => {
-      const v = deepInput.value.trim();
-      if (!v) return;
-      answers.push(`【引っかかりメモ】${v}`);
-      restartLoop();
-    });
-  }
-
-  function generateGentleOutput(a1, a2, a3, a4, a5) {
-    return [
-      "🧩 TOTONOEまとめ（やさしい出力）",
-      "",
-      `① 状況（事実）\n${a1 || "（未入力）"}`,
-      "",
-      `② 気持ち\n${a2 || "（未入力）"}`,
-      "",
-      `③ 引っかかり\n${a3 || "（未入力）"}`,
-      "",
-      `④ 本当はどうしたい\n${a4 || "（未入力）"}`,
-      "",
-      `⑤ 次の一歩（小さくてOK）\n${a5 || "（未入力）"}`,
-      "",
-      "やさしい補助：完璧に書けなくても大丈夫。ここまで言葉にできた時点で前進です。",
-    ].join("\n");
-  }
-
-  function showResult() {
-    app.innerHTML = "";
-
-    const output = generateGentleOutput(
-      answers[0] || "",
-      answers[1] || "",
-      answers[2] || "",
-      answers[3] || "",
-      answers[4] || ""
-    );
-
-    const memo = answers.length > questions.length ? (answers[answers.length - 1] || "") : "";
-    const promptText = buildPromptText(questions, answers);
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    card.innerHTML = `
-      <p class="qtitle">結果</p>
-
-      <pre style="white-space:pre-wrap; margin:0;">${escapeHtml(output)}</pre>
-
-      ${
-        memo
-          ? `
-        <p class="small" style="margin-top:12px;">
-          <b>メモ</b><br>${escapeHtml(memo)}
-        </p>
-      `
-          : ""
-      }
-
-      <div class="row">
-        <button class="primary" id="btnRestart">最初から</button>
-        <button id="btnHistory" style="margin-left:auto;">🗂 履歴</button>
-      </div>
-
-      <hr style="margin:24px 0;">
-
-      <p class="qtitle">🧠 コピー用プロンプト（AIに貼る用）</p>
-
-      <textarea id="promptText" readonly
-        style="width:100%;height:220px;white-space:pre-wrap; padding:12px; border-radius:12px;">${escapeHtml(
-          promptText
-        )}</textarea>
-
-      <div class="row" style="margin-top:12px;">
-        <button class="primary" id="btnCopyPrompt">📋 プロンプトをコピー</button>
-      </div>
-    `;
-
-    app.appendChild(card);
-
-    document.getElementById("btnCopyPrompt").addEventListener("click", async () => {
-      const text = document.getElementById("promptText").value;
-      try {
-        await navigator.clipboard.writeText(text);
-        alert("プロンプトをコピーしました");
-      } catch {
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        alert("プロンプトをコピーしました（互換コピー）");
-      }
-    });
-
-    document.getElementById("btnRestart").addEventListener("click", () => {
-      idx = 0;
-      loopCount = 0;
-
-      for (let i = 0; i < questions.length; i++) answers[i] = "";
-      answers.length = questions.length;
-
-      renderQuestion(false);
-    });
-
-    document.getElementById("btnHistory").addEventListener("click", showHistory);
-  }
-
-  function showHistory() {
-    const history = loadHistory();
-    app.innerHTML = "";
-
-    const card = document.createElement("div");
-    card.className = "card fade-in";
-    card.style.borderRadius = "var(--card-radius, 16px)";
-
-    if (history.length === 0) {
       card.innerHTML = `
-        <p class="qtitle">🗂 履歴</p>
-        <p>履歴はまだないよ。</p>
         <div class="row">
-          <button class="primary" id="btnBack">← 戻る</button>
+          <div class="pill">Aモード：TOTONOE</div>
+          <div class="progress">${state.idx + 1} / ${state.questions.length}</div>
+        </div>
+        <div class="spacer"></div>
+
+        <div class="q">${escapeHTML(q)}</div>
+        <textarea id="answer" placeholder="ここに回答…">${escapeHTML(prev)}</textarea>
+
+        <div class="spacer"></div>
+        <div class="row">
+          <button id="back" class="btn ghost" ${state.idx === 0 ? "disabled" : ""}>← 戻る</button>
+          <div style="display:flex; gap:10px;">
+            <button id="restart" class="btn ghost">Reset</button>
+            <button id="next" class="btn primary">${state.idx === state.questions.length - 1 ? "結果へ" : "次へ"}</button>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="muted">
+          ※ Code Labの文章がある場合、開始時に固定もできます（必要なら後でONにする）
         </div>
       `;
-      app.appendChild(card);
-      document.getElementById("btnBack").addEventListener("click", showFinalQuestion);
+
+      view.appendChild(card);
+
+      const answerEl = $("#answer");
+      $("#back").addEventListener("click", () => {
+        state.answers[state.idx] = answerEl.value;
+        state.idx = Math.max(0, state.idx - 1);
+        render();
+      });
+
+      $("#restart").addEventListener("click", () => {
+        if (!confirm("回答をリセットする？")) return;
+        state.idx = 0;
+        state.answers = [];
+        state.seedFixed = "";
+        render();
+      });
+
+      $("#next").addEventListener("click", () => {
+        // 開始時固定：最初の遷移タイミングでseedを確定（必要になったら使う）
+        if (state.idx === 0 && !state.seedFixed) {
+          state.seedFixed = currentSeed || "";
+        }
+
+        state.answers[state.idx] = answerEl.value;
+        state.idx += 1;
+        render();
+      });
+
       return;
     }
 
-    const list = history.slice(0, 10).map((h) => {
-      const date = new Date(h.timestamp).toLocaleString("ja-JP");
-      const mini = (h.answers || []).join(" / ");
-      return `
-        <div class="history-item">
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <span class="badge">${escapeHtml(h.final)}</span>
-            <span class="muted">${escapeHtml(date)}</span>
-            <span class="muted">周回:${escapeHtml(String(h.loopCount))}</span>
-          </div>
-          <div class="small" style="margin-top:6px;">${escapeHtml(mini.slice(0, 140))}${mini.length > 140 ? "..." : ""}</div>
-        </div>
-      `;
-    }).join("");
+    // Result
+    const gentle = !!state.behavior.gentle;
+    const summary = buildSummary(state.questions, state.answers);
 
     card.innerHTML = `
-      <p class="qtitle">🗂 履歴（最新10件）</p>
-      <div class="history-list">${list}</div>
       <div class="row">
-        <button class="primary" id="btnBack">← 戻る</button>
-        <button id="btnClear" style="margin-left:auto;">履歴を消す</button>
+        <div class="pill">結果</div>
+        <div class="progress">${state.questions.length} / ${state.questions.length}</div>
+      </div>
+      <div class="spacer"></div>
+
+      <div class="title">まとめ</div>
+      <div class="muted">${gentle ? "やさしく整理しました。" : "整理結果です。"}</div>
+      <div class="spacer"></div>
+
+      <div class="card" style="border:1px solid #f1f1f1; background:#fafafa;">
+        <pre>${escapeHTML(summary)}</pre>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="row">
+        <button id="restart2" class="btn ghost">Reset</button>
+        <button id="back2" class="btn">← 戻る</button>
       </div>
     `;
 
-    app.appendChild(card);
+    view.appendChild(card);
 
-    document.getElementById("btnBack").addEventListener("click", showFinalQuestion);
-    document.getElementById("btnClear").addEventListener("click", clearHistory);
+    $("#restart2").addEventListener("click", () => {
+      if (!confirm("回答をリセットする？")) return;
+      state.idx = 0;
+      state.answers = [];
+      state.seedFixed = "";
+      render();
+    });
+
+    $("#back2").addEventListener("click", () => {
+      state.idx = Math.max(0, state.questions.length - 1);
+      render();
+    });
   }
 
-  // ===============================
-  // Boot
-  // ===============================
-  // Apply last saved codelab theme if exists
-  const savedLab = loadCodeLabConfig();
-  applyTheme(savedLab);
-
-  mountABHeader();
-
-  // Start
-  if (getMode() === "B") {
-    showCodeLab();
-  } else {
-    renderQuestion(false);
+  function buildSummary(qs, ans) {
+    const lines = [];
+    for (let i = 0; i < qs.length; i++) {
+      const a = (ans[i] || "").trim();
+      lines.push(`${stripNumPrefix(qs[i])}\n${a ? a : "（未入力）"}\n`);
+    }
+    return lines.join("\n");
   }
-});
-document.addEventListener("DOMContentLoaded", () => {
-  const app = document.getElementById("app");
-  if (!app) return;
 
-  // Code Lab UI を #app に描画
-  app.innerHTML = `
-    <section class="codelab">
-      <h2>Code Lab</h2>
-      <textarea id="codeInput" placeholder="ここに入力してみてください"></textarea>
-      <pre id="codeOutput">（ここに結果が表示されます）</pre>
-    </section>
-  `;
+  function stripNumPrefix(s) {
+    // ①〜などの頭は残しても良いが、読みやすくしたいならここで整える
+    return s;
+  }
 
-  const input = document.getElementById("codeInput");
-  const output = document.getElementById("codeOutput");
-  if (!input || !output) return;
+  // ---------- B: Code Lab ----------
+  function renderCodeLab(view) {
+    const animate = !!state.behavior.animate;
 
-  input.addEventListener("input", () => {
-    output.textContent = input.value || "（ここに結果が表示されます）";
-  });
-});
+    const card = document.createElement("div");
+    card.className = `card ${animate ? "fadeIn" : ""}`;
+
+    const currentConfig = {
+      questions: state.questions,
+      ui: state.ui,
+      behavior: state.behavior,
+    };
+
+    const initialText = JSON.stringify(currentConfig, null, 2);
+
+    card.innerHTML = `
+      <div class="row">
+        <div class="pill">🧪 Bモード：Code Lab（疑似コーディング体験）</div>
+        <div class="muted">JSONを編集 → Applyで即反映（危険なJSは実行しません）</div>
+      </div>
+
+      <div class="spacer"></div>
+
+      <textarea id="editor" style="min-height: 360px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">${escapeHTML(initialText)}</textarea>
+
+      <div class="spacer"></div>
+
+      <div class="row">
+        <div style="display:flex; gap:10px;">
+          <button id="backToApp" class="btn">← アプリに戻る</button>
+          <button id="resetEditor" class="btn ghost">Reset</button>
+        </div>
+        <button id="apply" class="btn primary">Apply / Run</button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="codehint">
+        例：<code>questions</code>配列を増やす / <code>ui.accent</code>を変える / <code>behavior.animate</code>をfalseにする
+        <div id="msg" class="muted" style="margin-top:8px;"></div>
+      </div>
+    `;
+
+    view.appendChild(card);
+
+    $("#backToApp").addEventListener("click", () => setMode("A"));
+
+    $("#resetEditor").addEventListener("click", () => {
+      if (!confirm("エディタを現在の設定に戻す？（保存済みの設定は消えません）")) return;
+      $("#editor").value = initialText;
+      setMsg("いまの設定を再表示しました。");
+    });
+
+    // 入力内容を共有（A開始時固定用にも使える）
+    $("#editor").addEventListener("input", () => {
+      window.TOTONOE = window.TOTONOE || {};
+      window.TOTONOE.codelabText = $("#editor").value;
+    });
+    // 初期も入れておく
+    window.TOTONOE = window.TOTONOE || {};
+    window.TOTONOE.codelabText = $("#editor").value;
+
+    $("#apply").addEventListener("click", () => {
+      const text = $("#editor").value;
+      const parsed = safeParseJSON(text);
+      if (!parsed.ok) {
+        setMsg("JSONの形式が正しくないで。カンマ/カッコを確認してな！", true);
+        return;
+      }
+
+      const cfg = parsed.value;
+
+      // questions
+      const qs = sanitizeQuestions(cfg?.questions);
+      if (!qs) {
+        setMsg('questions は「文字列の配列」で、1つ以上入れてな！', true);
+        return;
+      }
+
+      // ui（任意）
+      const ui = {
+        accent: typeof cfg?.ui?.accent === "string" ? cfg.ui.accent : state.ui.accent,
+        cardRadius: clampNum(cfg?.ui?.cardRadius, 8, 28, state.ui.cardRadius),
+      };
+
+      // behavior（任意）
+      const behavior = {
+        gentle: typeof cfg?.behavior?.gentle === "boolean" ? cfg.behavior.gentle : state.behavior.gentle,
+        animate: typeof cfg?.behavior?.animate === "boolean" ? cfg.behavior.animate : state.behavior.animate,
+      };
+
+      // 保存＆反映
+      state.questions = qs;
+      state.ui = ui;
+      state.behavior = behavior;
+
+      saveJSON(QUESTIONS_KEY, qs);
+      saveJSON(UI_KEY, ui);
+      saveJSON(BEHAVIOR_KEY, behavior);
+
+      // TOTONOE側は最初からやり直し
+      state.idx = 0;
+      state.answers = [];
+      state.seedFixed = "";
+
+      setMsg("Apply 完了。Aモードに戻ると質問に反映されてるで。");
+    });
+
+    function setMsg(text, isError = false) {
+      const msg = $("#msg");
+      msg.textContent = text;
+      msg.classList.toggle("danger", isError);
+    }
+  }
+
+  // ---------- HTML Escape ----------
+  function escapeHTML(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+})();
