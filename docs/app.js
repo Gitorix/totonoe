@@ -1,7 +1,8 @@
 /* TOTONOE - single file app.js (GitHub Pages OK)
    - A: TOTONOE（質問に答える）
    - B: Code Lab（JSONを手打ちして質問を編集・追加）
-   - Apply / Run：JSONを安全に読み込み、質問とUI設定だけ反映（JS実行なし）
+   - Apply / Run：JSONを安全に読み込み、質問/UI/挙動だけ反映（JS実行なし）
+   - Reset（確認あり）：初期テンプレに戻して「即反映」してAに戻る
 */
 
 (() => {
@@ -12,22 +13,13 @@
   const MODE_KEY = "totonoe_mode";
 
   // ---------- Defaults ----------
- const DEFAULT_TEMPLATE = JSON.stringify(
-  {
-    questions: [
-      "① 状況（事実）：いま何が起きてる？",
-      "② 気持ち：どう感じてる？",
-      "③ 引っかかり：どこがモヤる？",
-      "④ 本当はどうしたい：理想は？",
-      "⑤ 次の一歩（小さくてOK）：何からやる？"
-    ],
-    ui: { accent: "#7c5cff", cardRadius: 16 },
-    behavior: { gentle: true, animate: true }
-  },
-  null,
-  2
-);
-
+  const DEFAULT_QUESTIONS = [
+    "① 状況（事実）：いま何が起きてる？",
+    "② 気持ち：どう感じてる？",
+    "③ 引っかかり：どこがモヤる？",
+    "④ 本当はどうしたい：理想は？",
+    "⑤ 次の一歩（小さくてOK）：何からやる？",
+  ];
 
   const DEFAULT_UI = {
     accent: "#7c5cff",
@@ -38,6 +30,23 @@
     gentle: true,
     animate: true,
   };
+
+  // ✅ Resetで必ず戻る「固定テンプレ」（編集ミスがあってもこれに復帰できる）
+  const DEFAULT_TEMPLATE = JSON.stringify(
+    {
+      questions: [
+        "① 状況（事実）：いま何が起きてる？",
+        "② 気持ち：どう感じてる？",
+        "③ 引っかかり：どこがモヤる？",
+        "④ 本当はどうしたい：理想は？",
+        "⑤ 次の一歩（小さくてOK）：何からやる？",
+      ],
+      ui: { accent: "#7c5cff", cardRadius: 16 },
+      behavior: { gentle: true, animate: true },
+    },
+    null,
+    2
+  );
 
   // ---------- Helpers ----------
   const $ = (sel) => document.querySelector(sel);
@@ -88,7 +97,6 @@
     behavior: { ...DEFAULT_BEHAVIOR, ...loadJSON(BEHAVIOR_KEY, DEFAULT_BEHAVIOR) },
     idx: 0,
     answers: [],
-    seedFixed: "",
   };
 
   // ---------- Mount ----------
@@ -116,6 +124,7 @@
         .btn.primary { border-color: transparent; background: var(--accent); color: #fff; }
         .btn.ghost { background:#fff; }
         .btn.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn:disabled { opacity: .45; cursor: not-allowed; }
         .card { border: 1px solid #eee; border-radius: var(--radius); padding: 18px; background: #fff; }
         .muted { color:#666; font-size: 13px; }
         .title { font-size: 18px; font-weight: 800; margin: 0 0 8px; }
@@ -134,8 +143,6 @@
         pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.55; }
         .danger { color:#b00020; }
         .codehint { font-size: 13px; color:#444; }
-        .grid { display:grid; grid-template-columns: 1fr; gap: 14px; }
-        @media(min-width: 860px){ .grid { grid-template-columns: 1fr 1fr; } }
       </style>
 
       <div class="wrap">
@@ -156,7 +163,7 @@
   function bindHeader() {
     $("#btnA").addEventListener("click", () => setMode("A"));
     $("#btnB").addEventListener("click", () => setMode("B"));
-    $("#btnLab").addEventListener("click", () => setMode("B")); // 表示は同じ（B＝Code Lab）
+    $("#btnLab").addEventListener("click", () => setMode("B")); // B＝Code Lab
   }
 
   function setMode(mode) {
@@ -174,7 +181,7 @@
   // ---------- Render ----------
   function render() {
     applyActiveButtons();
-    // reflect UI vars
+
     document.documentElement.style.setProperty("--accent", state.ui.accent);
     document.documentElement.style.setProperty("--radius", `${state.ui.cardRadius}px`);
 
@@ -189,13 +196,9 @@
   function renderApp(view) {
     const animate = !!state.behavior.animate;
 
-    // seed（Code Lab入力）を「開始時に固定」できるようにしておく
-    const currentSeed = (window.TOTONOE && window.TOTONOE.codelabText) ? window.TOTONOE.codelabText : "";
-
     const card = document.createElement("div");
     card.className = `card ${animate ? "fadeIn" : ""}`;
 
-    // 進行中 or 結果
     if (state.idx < state.questions.length) {
       const q = state.questions[state.idx];
       const prev = state.answers[state.idx] || "";
@@ -218,16 +221,12 @@
             <button id="next" class="btn primary">${state.idx === state.questions.length - 1 ? "結果へ" : "次へ"}</button>
           </div>
         </div>
-
-        <div class="spacer"></div>
-        <div class="muted">
-          ※ Code Labの文章がある場合、開始時に固定もできます（必要なら後でONにする）
-        </div>
       `;
 
       view.appendChild(card);
 
       const answerEl = $("#answer");
+
       $("#back").addEventListener("click", () => {
         state.answers[state.idx] = answerEl.value;
         state.idx = Math.max(0, state.idx - 1);
@@ -238,16 +237,10 @@
         if (!confirm("回答をリセットする？")) return;
         state.idx = 0;
         state.answers = [];
-        state.seedFixed = "";
         render();
       });
 
       $("#next").addEventListener("click", () => {
-        // 開始時固定：最初の遷移タイミングでseedを確定（必要になったら使う）
-        if (state.idx === 0 && !state.seedFixed) {
-          state.seedFixed = currentSeed || "";
-        }
-
         state.answers[state.idx] = answerEl.value;
         state.idx += 1;
         render();
@@ -256,7 +249,6 @@
       return;
     }
 
-    // Result
     const gentle = !!state.behavior.gentle;
     const summary = buildSummary(state.questions, state.answers);
 
@@ -288,7 +280,6 @@
       if (!confirm("回答をリセットする？")) return;
       state.idx = 0;
       state.answers = [];
-      state.seedFixed = "";
       render();
     });
 
@@ -302,14 +293,9 @@
     const lines = [];
     for (let i = 0; i < qs.length; i++) {
       const a = (ans[i] || "").trim();
-      lines.push(`${stripNumPrefix(qs[i])}\n${a ? a : "（未入力）"}\n`);
+      lines.push(`${qs[i]}\n${a ? a : "（未入力）"}\n`);
     }
     return lines.join("\n");
-  }
-
-  function stripNumPrefix(s) {
-    // ①〜などの頭は残しても良いが、読みやすくしたいならここで整える
-    return s;
   }
 
   // ---------- B: Code Lab ----------
@@ -325,6 +311,7 @@
       behavior: state.behavior,
     };
 
+    // ✅ エディタ初期表示は「現在の設定」だが、Resetは固定テンプレへ戻す
     const initialText = JSON.stringify(currentConfig, null, 2);
 
     card.innerHTML = `
@@ -342,13 +329,12 @@
       <div class="row">
         <div style="display:flex; gap:10px;">
           <button id="backToApp" class="btn">← アプリに戻る</button>
-          <button id="resetEditor" class="btn ghost">Reset</button>
+          <button id="resetEditor" class="btn ghost">Reset（初期へ）</button>
         </div>
         <button id="apply" class="btn primary">Apply / Run</button>
       </div>
 
       <div class="spacer"></div>
-
       <div class="codehint">
         例：<code>questions</code>配列を増やす / <code>ui.accent</code>を変える / <code>behavior.animate</code>をfalseにする
         <div id="msg" class="muted" style="margin-top:8px;"></div>
@@ -359,59 +345,38 @@
 
     $("#backToApp").addEventListener("click", () => setMode("A"));
 
-   $("#resetEditor").addEventListener("click", () => {
-  if (!confirm("初期テンプレに戻して即反映する？")) return;
+    function setMsg(text, isError = false) {
+      const msg = $("#msg");
+      msg.textContent = text;
+      msg.classList.toggle("danger", isError);
+    }
 
-  $("#editor").value = DEFAULT_TEMPLATE;
-
-  const ok = applyFromText(DEFAULT_TEMPLATE);
-  if (!ok) return; // ここは基本起きない（テンプレが正しい前提）
-
-  setMsg("初期テンプレで即反映したで。");
-  setMode("A");
-});
-
-
-
-    // 入力内容を共有（A開始時固定用にも使える）
-    $("#editor").addEventListener("input", () => {
-      window.TOTONOE = window.TOTONOE || {};
-      window.TOTONOE.codelabText = $("#editor").value;
-    });
-    // 初期も入れておく
-    window.TOTONOE = window.TOTONOE || {};
-    window.TOTONOE.codelabText = $("#editor").value;
-
-   $("#apply").addEventListener("click", () => {
-  const ok = applyFromText($("#editor").value);
-  if (!ok) return;
-  setMsg("Apply 完了。Aモードに反映したで。");
-  setMode("A");
-});
-
+    // ✅ Applyの中身を関数化（Resetからも呼ぶ）
+    function applyFromText(text) {
+      const parsed = safeParseJSON(text);
+      if (!parsed.ok) {
+        setMsg("JSONの形式が正しくないで。カンマ/カッコを確認してな！", true);
+        return false;
+      }
 
       const cfg = parsed.value;
 
-      // questions
       const qs = sanitizeQuestions(cfg?.questions);
       if (!qs) {
         setMsg('questions は「文字列の配列」で、1つ以上入れてな！', true);
-        return;
+        return false;
       }
 
-      // ui（任意）
       const ui = {
         accent: typeof cfg?.ui?.accent === "string" ? cfg.ui.accent : state.ui.accent,
         cardRadius: clampNum(cfg?.ui?.cardRadius, 8, 28, state.ui.cardRadius),
       };
 
-      // behavior（任意）
       const behavior = {
         gentle: typeof cfg?.behavior?.gentle === "boolean" ? cfg.behavior.gentle : state.behavior.gentle,
         animate: typeof cfg?.behavior?.animate === "boolean" ? cfg.behavior.animate : state.behavior.animate,
       };
 
-      // 保存＆反映
       state.questions = qs;
       state.ui = ui;
       state.behavior = behavior;
@@ -420,19 +385,31 @@
       saveJSON(UI_KEY, ui);
       saveJSON(BEHAVIOR_KEY, behavior);
 
-      // TOTONOE側は最初からやり直し
       state.idx = 0;
       state.answers = [];
-      state.seedFixed = "";
 
-      setMsg("Apply 完了。Aモードに戻ると質問に反映されてるで。");
+      return true;
+    }
+
+    $("#apply").addEventListener("click", () => {
+      const ok = applyFromText($("#editor").value);
+      if (!ok) return;
+      setMsg("Apply 完了。Aモードに反映したで。");
+      setMode("A");
     });
 
-    function setMsg(text, isError = false) {
-      const msg = $("#msg");
-      msg.textContent = text;
-      msg.classList.toggle("danger", isError);
-    }
+    // ✅ Reset（確認あり）→ 初期テンプレに戻す → 即反映 → Aへ
+    $("#resetEditor").addEventListener("click", () => {
+      if (!confirm("初期テンプレに戻して即反映する？")) return;
+
+      $("#editor").value = DEFAULT_TEMPLATE;
+
+      const ok = applyFromText(DEFAULT_TEMPLATE);
+      if (!ok) return; // 基本起きない（テンプレは正しい想定）
+
+      setMsg("初期テンプレで即反映したで。");
+      setMode("A");
+    });
   }
 
   // ---------- HTML Escape ----------
