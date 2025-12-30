@@ -1,6 +1,3 @@
-alert("app.js は読み込まれています");
-
-// --- 初期設定 ---
 const questions = [
   "今、頭の中が少し散らかっている？",
   "やるべき事が多すぎると感じる？",
@@ -10,40 +7,38 @@ const questions = [
 let currentIndex = 0;
 const answers = [];
 
-// --- ページ読み込み後に開始 ---
+// ページが読み終わったら開始
 document.addEventListener("DOMContentLoaded", () => {
   renderQuestion();
 });
 
-// --- 画面描画 ---
+// 👉 イベント委譲（これが重要）
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-answer]");
+  if (!btn) return;
+
+  handleAnswer(btn.dataset.answer === "yes");
+});
+
 function renderQuestion() {
   const app = document.getElementById("app");
 
   app.innerHTML = `
-    <div class="question-box">
-      <p class="question">${questions[currentIndex]}</p>
+    <div style="padding:16px">
+      <p style="font-size:18px; line-height:1.6; margin-bottom:16px">
+        ${questions[currentIndex]}
+      </p>
 
-      <div class="buttons">
-        <button id="yesBtn">YES</button>
-        <button id="noBtn">NO</button>
+      <div style="display:flex; gap:12px">
+        <button data-answer="yes" style="flex:1; padding:14px">YES</button>
+        <button data-answer="no"  style="flex:1; padding:14px">NO</button>
       </div>
     </div>
   `;
-
-  // 🔴 超重要：innerHTMLの「直後」にイベントを付ける
-  document.getElementById("yesBtn").addEventListener("click", () => {
-    handleAnswer(true);
-  });
-
-  document.getElementById("noBtn").addEventListener("click", () => {
-    handleAnswer(false);
-  });
 }
 
-// --- 回答処理 ---
 function handleAnswer(answer) {
   answers.push(answer);
-
   currentIndex++;
 
   if (currentIndex < questions.length) {
@@ -53,21 +48,21 @@ function handleAnswer(answer) {
   }
 }
 
-// --- 結果表示 ---
 function showResult() {
   const app = document.getElementById("app");
-
   app.innerHTML = `
-    <div class="result-box">
+    <div style="padding:16px">
       <h2>お疲れさまでした</h2>
-      <p>今の思考状態が整理されました。</p>
-      <button id="restartBtn">最初から</button>
+      <p>${answers.map(a => a ? "YES" : "NO").join(" / ")}</p>
+      <button id="restart" style="margin-top:16px; padding:12px">
+        最初から
+      </button>
     </div>
   `;
 
-  document.getElementById("restartBtn").addEventListener("click", () => {
+  document.getElementById("restart").onclick = () => {
     currentIndex = 0;
     answers.length = 0;
     renderQuestion();
-  });
+  };
 }
