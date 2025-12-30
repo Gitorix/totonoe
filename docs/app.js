@@ -12,13 +12,22 @@
   const MODE_KEY = "totonoe_mode";
 
   // ---------- Defaults ----------
-  const DEFAULT_QUESTIONS = [
-    "① 状況（事実）：いま何が起きてる？",
-    "② 気持ち：どう感じてる？",
-    "③ 引っかかり：どこがモヤる？",
-    "④ 本音：本当はどうしたい？理想は？",
-    "⑤ 次の一歩（小さくてOK）：何からやる？",
-  ];
+ const DEFAULT_TEMPLATE = JSON.stringify(
+  {
+    questions: [
+      "① 状況（事実）：いま何が起きてる？",
+      "② 気持ち：どう感じてる？",
+      "③ 引っかかり：どこがモヤる？",
+      "④ 本当はどうしたい：理想は？",
+      "⑤ 次の一歩（小さくてOK）：何からやる？"
+    ],
+    ui: { accent: "#7c5cff", cardRadius: 16 },
+    behavior: { gentle: true, animate: true }
+  },
+  null,
+  2
+);
+
 
   const DEFAULT_UI = {
     accent: "#7c5cff",
