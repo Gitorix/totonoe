@@ -375,13 +375,13 @@
     window.TOTONOE = window.TOTONOE || {};
     window.TOTONOE.codelabText = $("#editor").value;
 
-    $("#apply").addEventListener("click", () => {
-      const text = $("#editor").value;
-      const parsed = safeParseJSON(text);
-      if (!parsed.ok) {
-        setMsg("JSONの形式が正しくないで。カンマ/カッコを確認してな！", true);
-        return;
-      }
+   $("#apply").addEventListener("click", () => {
+  const ok = applyFromText($("#editor").value);
+  if (!ok) return;
+  setMsg("Apply 完了。Aモードに反映したで。");
+  setMode("A");
+});
+
 
       const cfg = parsed.value;
 
