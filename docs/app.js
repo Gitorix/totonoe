@@ -783,9 +783,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 document.addEventListener("DOMContentLoaded", () => {
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  // Code Lab UI を #app に描画
+  app.innerHTML = `
+    <section class="codelab">
+      <h2>Code Lab</h2>
+      <textarea id="codeInput" placeholder="ここに入力してみてください"></textarea>
+      <pre id="codeOutput">（ここに結果が表示されます）</pre>
+    </section>
+  `;
+
   const input = document.getElementById("codeInput");
   const output = document.getElementById("codeOutput");
-
   if (!input || !output) return;
 
   input.addEventListener("input", () => {
