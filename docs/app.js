@@ -395,7 +395,6 @@
       const ok = applyFromText($("#editor").value);
       if (!ok) return;
       setMsg("Apply 完了。Aモードに反映したで。");
-      setMode("A");
     });
 
   $("#resetEditor").addEventListener("click", () => {
