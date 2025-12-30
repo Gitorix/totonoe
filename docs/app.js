@@ -167,10 +167,19 @@
   }
 
   function setMode(mode) {
-    state.mode = mode;
-    saveJSON(MODE_KEY, mode);
-    render();
+  state.mode = mode;
+  saveJSON(MODE_KEY, mode);
+
+  // ✅ Aに入る瞬間だけ「保存済みの最新設定」を読み直す（ズレ対策）
+  if (mode === "A") {
+    state.questions = loadJSON(QUESTIONS_KEY, DEFAULT_QUESTIONS);
+    state.ui = { ...DEFAULT_UI, ...loadJSON(UI_KEY, DEFAULT_UI) };
+    state.behavior = { ...DEFAULT_BEHAVIOR, ...loadJSON(BEHAVIOR_KEY, DEFAULT_BEHAVIOR) };
   }
+
+  render();
+}
+
 
   function applyActiveButtons() {
     $("#btnA").classList.toggle("active", state.mode === "A");
