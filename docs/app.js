@@ -782,3 +782,13 @@ document.addEventListener("DOMContentLoaded", () => {
     renderQuestion(false);
   }
 });
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("codeInput");
+  const output = document.getElementById("codeOutput");
+
+  if (!input || !output) return;
+
+  input.addEventListener("input", () => {
+    output.textContent = input.value || "（ここに結果が表示されます）";
+  });
+});
