@@ -309,14 +309,19 @@ if (state.idx >= state.questions.length) {
     });
   }
 
-  function buildSummary(qs, ans) {
-    const lines = [];
-    for (let i = 0; i < qs.length; i++) {
-      const a = (ans[i] || "").trim();
-      lines.push(`${qs[i]}\n${a ? a : "（未入力）"}\n`);
-    }
-    return lines.join("\n");
+  function buildPrompt(qs, ans) {
+  const lines = [];
+  lines.push("以下は思考整理ツール『TOTONOE』の回答結果です。");
+  lines.push("この内容を踏まえて、次のアクションや要点を整理してください。\n");
+
+  for (let i = 0; i < qs.length; i++) {
+    const a = (ans[i] || "").trim() || "（未入力）";
+    lines.push(`${qs[i]}\n${a}\n`);
   }
+
+  return lines.join("\n");
+}
+
 
   // ---------- B: Code Lab ----------
   function renderCodeLab(view) {
