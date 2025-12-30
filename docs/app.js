@@ -350,11 +350,12 @@
 
     $("#backToApp").addEventListener("click", () => setMode("A"));
 
-    $("#resetEditor").addEventListener("click", () => {
-      if (!confirm("エディタを現在の設定に戻す？（保存済みの設定は消えません）")) return;
-      $("#editor").value = initialText;
-      setMsg("いまの設定を再表示しました。");
-    });
+   $("#resetEditor").addEventListener("click", () => {
+  if (!confirm("エディタを初期テンプレに戻す？（保存済みの設定は消えません）")) return;
+  $("#editor").value = DEFAULT_TEMPLATE;
+  setMsg("初期テンプレに戻しました。Applyで反映できます。");
+});
+
 
     // 入力内容を共有（A開始時固定用にも使える）
     $("#editor").addEventListener("input", () => {
