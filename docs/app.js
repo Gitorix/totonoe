@@ -228,10 +228,11 @@
      card.innerHTML = `
   <div style="text-align:center; margin-bottom:16px;">
     <img
-      src="./totonoe.png"
-      alt="TOTONOE"
-      style="max-width:220px; width:100%; border-radius:16px;"
-    />
+  src="/totonoe/totonoe.png"
+  alt="TOTONOE"
+  style="max-width:220px; width:100%; border-radius:16px;"
+/>
+
   </div>
 
   <div class="row">
