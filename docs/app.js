@@ -398,18 +398,13 @@
       setMode("A");
     });
 
-    // ✅ Reset（確認あり）→ 初期テンプレに戻す → 即反映 → Aへ
-    $("#resetEditor").addEventListener("click", () => {
-      if (!confirm("初期テンプレに戻して即反映する？")) return;
+  $("#resetEditor").addEventListener("click", () => {
+  if (!confirm("初期テンプレに戻す？（Applyするまで反映されません）")) return;
 
-      $("#editor").value = DEFAULT_TEMPLATE;
+  $("#editor").value = DEFAULT_TEMPLATE;
+  setMsg("初期テンプレに戻しました。Applyで反映できます。");
+});
 
-      const ok = applyFromText(DEFAULT_TEMPLATE);
-      if (!ok) return; // 基本起きない（テンプレは正しい想定）
-
-      setMsg("初期テンプレで即反映したで。");
-      setMode("A");
-    });
   }
 
   // ---------- HTML Escape ----------
