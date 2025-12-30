@@ -203,7 +203,18 @@
 
   // ---------- A: TOTONOE ----------
   function renderApp(view) {
-    const animate = !!state.behavior.animate;
+  // ✅ A表示のたびに「保存済み最新」を読み直す（リロード無しで反映させる）
+state.questions = loadJSON(QUESTIONS_KEY, DEFAULT_QUESTIONS);
+state.ui = { ...DEFAULT_UI, ...loadJSON(UI_KEY, DEFAULT_UI) };
+state.behavior = { ...DEFAULT_BEHAVIOR, ...loadJSON(BEHAVIOR_KEY, DEFAULT_BEHAVIOR) };
+
+// 質問数が変わった時に index がはみ出す事故を防ぐ
+if (state.idx >= state.questions.length) {
+  state.idx = 0;
+  state.answers = [];
+}
+ 
+     const animate = !!state.behavior.animate;
 
     const card = document.createElement("div");
     card.className = `card ${animate ? "fadeIn" : ""}`;
