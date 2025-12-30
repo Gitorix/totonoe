@@ -288,10 +288,14 @@ if (state.idx >= state.questions.length) {
       </div>
 
       <div class="spacer"></div>
-      <div class="row">
-        <button id="restart2" class="btn ghost">Reset</button>
-        <button id="back2" class="btn">← 戻る</button>
-      </div>
+     <div class="row">
+  <button id="copyPrompt" class="btn">📋 プロンプトをコピー</button>
+  <div style="display:flex; gap:10px;">
+    <button id="restart2" class="btn ghost">Reset</button>
+    <button id="back2" class="btn">← 戻る</button>
+  </div>
+</div>
+
     `;
 
     view.appendChild(card);
