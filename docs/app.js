@@ -360,10 +360,17 @@
     $("#backToApp").addEventListener("click", () => setMode("A"));
 
    $("#resetEditor").addEventListener("click", () => {
-  if (!confirm("エディタを初期テンプレに戻す？（保存済みの設定は消えません）")) return;
+  if (!confirm("初期テンプレに戻して即反映する？")) return;
+
   $("#editor").value = DEFAULT_TEMPLATE;
-  setMsg("初期テンプレに戻しました。Applyで反映できます。");
+
+  const ok = applyFromText(DEFAULT_TEMPLATE);
+  if (!ok) return; // ここは基本起きない（テンプレが正しい前提）
+
+  setMsg("初期テンプレで即反映したで。");
+  setMode("A");
 });
+
 
 
     // 入力内容を共有（A開始時固定用にも使える）
